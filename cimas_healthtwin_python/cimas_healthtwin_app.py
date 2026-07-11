@@ -88,6 +88,44 @@ st.markdown(
       .risk-caption { color:#475569; font-size:.73rem; }
       .risk-change { color:#047857; font-size:.75rem; margin-top:.45rem; }
       .risk-note { color:#64748b; font-size:.7rem; margin-top:.65rem; }
+      .condition-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:.85rem; margin:.7rem 0 1rem; }
+      .condition-card { --accent:#64748b; background:#fff; border:1px solid #e2e8f0;
+        border-top:4px solid var(--accent); border-radius:1rem; padding:1rem;
+        box-shadow:0 1px 3px rgba(15,23,42,.05); }
+      .condition-card:last-child:nth-child(odd) { grid-column:1 / -1; }
+      .condition-card-head { display:flex; align-items:center; justify-content:space-between;
+        gap:.5rem; margin-bottom:.8rem; }
+      .condition-card-name { color:#0f172a; font-size:.92rem; font-weight:800; }
+      .condition-status { color:var(--accent); background:color-mix(in srgb,var(--accent) 10%,white);
+        border:1px solid color-mix(in srgb,var(--accent) 30%,white); border-radius:999px;
+        padding:.16rem .52rem; font-size:.67rem; font-weight:800; }
+      .condition-score-row { display:grid; grid-template-columns:1fr auto 1fr;
+        align-items:center; gap:.7rem; }
+      .condition-score-block { min-width:0; }
+      .condition-score-block:last-child { text-align:right; }
+      .condition-score-label { color:#64748b; font-size:.66rem; font-weight:700;
+        text-transform:uppercase; letter-spacing:.05em; }
+      .condition-score-number { color:#0f172a; font-size:2rem; line-height:1.05; font-weight:850; }
+      .condition-score-number.future { color:#047857; }
+      .condition-arrow { color:#94a3b8; font-size:1.25rem; }
+      .condition-change { display:inline-block; margin-top:.2rem; color:#047857;
+        background:#ecfdf5; border-radius:999px; padding:.12rem .42rem;
+        font-size:.68rem; font-weight:800; }
+      .condition-track { position:relative; height:.48rem; background:#e2e8f0;
+        border-radius:999px; margin:1rem .28rem .9rem; }
+      .condition-track-fill { position:absolute; inset:0 auto 0 0; border-radius:999px;
+        background:color-mix(in srgb,var(--accent) 72%,white); }
+      .condition-marker { position:absolute; top:50%; width:.82rem; height:.82rem;
+        background:#fff; border:3px solid var(--accent); border-radius:50%;
+        transform:translate(-50%,-50%); z-index:2; }
+      .condition-marker.future { border-color:#047857; border-radius:2px;
+        transform:translate(-50%,-50%) rotate(45deg); z-index:3; }
+      .condition-reading { display:flex; justify-content:space-between; gap:1rem;
+        color:#475569; font-size:.72rem; margin-bottom:.38rem; }
+      .condition-reading strong { color:#1e293b; }
+      .condition-gap { color:#475569; background:#f8fafc; border-radius:.55rem;
+        padding:.48rem .6rem; font-size:.7rem; line-height:1.35; }
       .low { background:#ecfdf5; border-color:#a7f3d0; color:#047857; }
       .moderate { background:#fffbeb; border-color:#fde68a; color:#a16207; }
       .high { background:#fff7ed; border-color:#fed7aa; color:#c2410c; }
@@ -137,6 +175,8 @@ st.markdown(
       }
       @media (max-width: 768px) {
         .block-container { padding-top:5rem; }
+        .condition-grid { grid-template-columns:1fr; }
+        .condition-card:last-child:nth-child(odd) { grid-column:auto; }
       }
     </style>
     """,
@@ -664,30 +704,44 @@ def member_view() -> None:
         st.caption("Each 0–100 score is a simple visual guide to closeness to the displayed screening reference—not a diagnosis. Status and the exact gap are shown below.")
         current_conditions = condition_assessments(height_cm=current.height_cm,weight_kg=current.weight_kg,sbp=current.sbp,dbp=current.dbp,hba1c=current.hba1c,egfr=current.egfr,diabetes_risk=diabetes_now)
         goal_conditions = condition_assessments(height_cm=current.height_cm,weight_kg=float(goal_end["Weight"]),sbp=float(goal_end["Systolic BP"]),dbp=float(goal_end["Diastolic BP"]),hba1c=float(goal_end["HbA1c"]),egfr=float(goal_end["eGFR"]),diabetes_risk=diabetes_goal)
-        score_data = pd.DataFrame(
-            [{"Condition":now["Condition"],"Today":now["Score"],"With your plan":future["Score"],"Status":now["Status"],"Current reading":now["Current"],"Reference":now["Healthy"],"Gap":now["Difference"],"Future status":future["Status"],"Future reading":future["Current"],"Future gap":future["Difference"]} for now,future in zip(current_conditions,goal_conditions)]
-        )
-        condition_figure = go.Figure()
-        row_positions = list(range(len(score_data)))
-        connector_x, connector_y = [], []
-        for position,(_,row) in zip(row_positions,score_data.iterrows()):
-            connector_x.extend([row["Today"],row["With your plan"],None])
-            connector_y.extend([position,position,None])
-            if position % 2 == 0:
-                condition_figure.add_shape(type="rect",x0=0,x1=100,y0=position-.38,y1=position+.38,line_width=0,fillcolor="#f8fafc",layer="below")
-        condition_figure.add_trace(go.Scatter(x=connector_x,y=connector_y,mode="lines",line={"color":"#cbd5e1","width":5},hoverinfo="skip",showlegend=False))
         status_colors={"On track":"#059669","Monitor":"#d97706","Review":"#ea580c","Urgent":"#be123c","Not calculated":"#64748b"}
-        today_hover=list(zip(score_data["Current reading"],score_data["Status"],score_data["Reference"],score_data["Gap"]))
-        future_hover=list(zip(score_data["Future reading"],score_data["Future status"],score_data["Reference"],score_data["Future gap"]))
-        condition_figure.add_trace(go.Scatter(x=score_data["Today"],y=row_positions,mode="markers+text",name="Today",text=score_data["Today"],textposition="middle left",textfont={"color":"#0f172a","size":11},marker={"size":18,"color":[status_colors.get(status,"#64748b") for status in score_data["Status"]],"symbol":"circle","line":{"color":"white","width":2}},customdata=today_hover,hovertemplate="<b>Today</b><br>Score: %{x}/100<br>Reading: %{customdata[0]}<br>Status: %{customdata[1]}<br>Reference: %{customdata[2]}<br>Gap: %{customdata[3]}<extra></extra>"))
-        condition_figure.add_trace(go.Scatter(x=score_data["With your plan"],y=row_positions,mode="markers+text",name="With your plan (modelled)",text=score_data["With your plan"],textposition="middle right",textfont={"color":"#065f46","size":11},marker={"size":18,"color":"#ffffff","symbol":"diamond","line":{"color":"#047857","width":3}},customdata=future_hover,hovertemplate="<b>With your plan (modelled)</b><br>Score: %{x}/100<br>Reading: %{customdata[0]}<br>Status: %{customdata[1]}<br>Reference: %{customdata[2]}<br>Gap: %{customdata[3]}<extra></extra>"))
-        for position,(_,row) in zip(row_positions,score_data.iterrows()):
-            condition_figure.add_annotation(x=106,y=position,text=f"{row['With your plan']-row['Today']:+.0f}",showarrow=False,font={"color":"#047857","size":12,"family":"Arial Black"},xanchor="center")
-        condition_figure.add_vline(x=100,line_color="#a7f3d0",line_dash="dot",line_width=1)
-        condition_figure.add_annotation(x=106,y=-.75,text="CHANGE",showarrow=False,font={"color":"#64748b","size":9},xanchor="center")
-        condition_figure.update_layout(height=385,margin={"l":175,"r":45,"t":62,"b":45},paper_bgcolor="#ffffff",plot_bgcolor="#ffffff",font={"color":"#334155","size":12},legend={"orientation":"h","y":1.16,"x":0,"font":{"color":"#334155","size":11}},hoverlabel={"bgcolor":"#ffffff","font_color":"#0f172a","bordercolor":"#cbd5e1"},xaxis={"title":{"text":"Condition score — higher means closer to the displayed reference","font":{"color":"#475569","size":11}},"range":[0,112],"tickvals":[0,25,50,75,100],"tickfont":{"color":"#475569","size":10},"gridcolor":"#e2e8f0","zeroline":False,"fixedrange":True},yaxis={"title":None,"tickvals":row_positions,"ticktext":[f"{condition}  ·  {status}" for condition,status in zip(score_data["Condition"],score_data["Status"])],"tickfont":{"color":"#0f172a","size":11},"autorange":"reversed","showgrid":False,"fixedrange":True})
-        st.plotly_chart(condition_figure,width="stretch",config={"displayModeBar":False},theme=None)
-        st.dataframe(pd.DataFrame(current_conditions).rename(columns={"Score":"Health score","Current":"Current reading","Healthy":"Displayed reference","Difference":"Distance from reference"}),width="stretch",hide_index=True,column_config={"Health score":st.column_config.ProgressColumn("Health score",min_value=0,max_value=100)})
+        cards=[]
+        for now,future in zip(current_conditions,goal_conditions):
+            accent=status_colors.get(now["Status"],"#64748b")
+            change=future["Score"]-now["Score"]
+            change_color="#047857" if change>0 else "#be123c" if change<0 else "#64748b"
+            change_bg="#ecfdf5" if change>0 else "#fff1f2" if change<0 else "#f1f5f9"
+            cards.append(f"""
+              <div class="condition-card" style="--accent:{accent}">
+                <div class="condition-card-head">
+                  <div class="condition-card-name">{escape(now['Condition'])}</div>
+                  <div class="condition-status">{escape(now['Status'])}</div>
+                </div>
+                <div class="condition-score-row">
+                  <div class="condition-score-block">
+                    <div class="condition-score-label">Today</div>
+                    <div class="condition-score-number">{now['Score']}<span style="font-size:.75rem;color:#64748b"> / 100</span></div>
+                  </div>
+                  <div class="condition-arrow">→</div>
+                  <div class="condition-score-block">
+                    <div class="condition-score-label">Modelled plan</div>
+                    <div class="condition-score-number future">{future['Score']}<span style="font-size:.75rem;color:#64748b"> / 100</span></div>
+                    <div class="condition-change" style="color:{change_color};background:{change_bg}">{change:+d} points</div>
+                  </div>
+                </div>
+                <div class="condition-track">
+                  <div class="condition-track-fill" style="width:{now['Score']}%"></div>
+                  <span class="condition-marker" style="left:{now['Score']}%"></span>
+                  <span class="condition-marker future" style="left:{future['Score']}%"></span>
+                </div>
+                <div class="condition-reading"><span>Today: <strong>{escape(now['Current'])}</strong></span><span>Reference: <strong>{escape(now['Healthy'])}</strong></span></div>
+                <div class="condition-reading"><span>Modelled: <strong>{escape(future['Current'])}</strong></span><span>Status: <strong>{escape(future['Status'])}</strong></span></div>
+                <div class="condition-gap"><strong>Current gap:</strong> {escape(now['Difference'])}<br><strong>With plan:</strong> {escape(future['Difference'])}</div>
+              </div>
+            """)
+        st.markdown('<div class="condition-grid">'+''.join(cards)+'</div>',unsafe_allow_html=True)
+        with st.expander("View condition scores as a table"):
+            st.dataframe(pd.DataFrame(current_conditions).rename(columns={"Score":"Health score","Current":"Current reading","Healthy":"Displayed reference","Difference":"Distance from reference"}),width="stretch",hide_index=True,column_config={"Health score":st.column_config.ProgressColumn("Health score",min_value=0,max_value=100)})
 
         st.markdown("### What's driving the improvement")
         levers = []
