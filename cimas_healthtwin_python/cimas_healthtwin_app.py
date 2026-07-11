@@ -665,13 +665,28 @@ def member_view() -> None:
         current_conditions = condition_assessments(height_cm=current.height_cm,weight_kg=current.weight_kg,sbp=current.sbp,dbp=current.dbp,hba1c=current.hba1c,egfr=current.egfr,diabetes_risk=diabetes_now)
         goal_conditions = condition_assessments(height_cm=current.height_cm,weight_kg=float(goal_end["Weight"]),sbp=float(goal_end["Systolic BP"]),dbp=float(goal_end["Diastolic BP"]),hba1c=float(goal_end["HbA1c"]),egfr=float(goal_end["eGFR"]),diabetes_risk=diabetes_goal)
         score_data = pd.DataFrame(
-            [{"Condition":now["Condition"],"Today":now["Score"],"With your plan":future["Score"]} for now,future in zip(current_conditions,goal_conditions)]
+            [{"Condition":now["Condition"],"Today":now["Score"],"With your plan":future["Score"],"Status":now["Status"],"Current reading":now["Current"],"Reference":now["Healthy"],"Gap":now["Difference"],"Future status":future["Status"],"Future reading":future["Current"],"Future gap":future["Difference"]} for now,future in zip(current_conditions,goal_conditions)]
         )
         condition_figure = go.Figure()
-        condition_figure.add_trace(go.Bar(y=score_data["Condition"],x=score_data["Today"],name="Today",orientation="h",marker_color="#94a3b8",text=score_data["Today"],textposition="auto"))
-        condition_figure.add_trace(go.Bar(y=score_data["Condition"],x=score_data["With your plan"],name="With your plan (modelled)",orientation="h",marker_color="#047857",text=score_data["With your plan"],textposition="auto"))
-        condition_figure.update_layout(barmode="group",height=330,margin={"l":5,"r":5,"t":10,"b":5},paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font={"color":"#475569","size":11},legend={"orientation":"h","y":-0.16},xaxis={"title":"Condition health score (0–100)","range":[0,100],"gridcolor":"#e7e5e4"},yaxis={"title":None,"autorange":"reversed"})
-        st.plotly_chart(condition_figure,width="stretch",config={"displayModeBar":False})
+        row_positions = list(range(len(score_data)))
+        connector_x, connector_y = [], []
+        for position,(_,row) in zip(row_positions,score_data.iterrows()):
+            connector_x.extend([row["Today"],row["With your plan"],None])
+            connector_y.extend([position,position,None])
+            if position % 2 == 0:
+                condition_figure.add_shape(type="rect",x0=0,x1=100,y0=position-.38,y1=position+.38,line_width=0,fillcolor="#f8fafc",layer="below")
+        condition_figure.add_trace(go.Scatter(x=connector_x,y=connector_y,mode="lines",line={"color":"#cbd5e1","width":5},hoverinfo="skip",showlegend=False))
+        status_colors={"On track":"#059669","Monitor":"#d97706","Review":"#ea580c","Urgent":"#be123c","Not calculated":"#64748b"}
+        today_hover=list(zip(score_data["Current reading"],score_data["Status"],score_data["Reference"],score_data["Gap"]))
+        future_hover=list(zip(score_data["Future reading"],score_data["Future status"],score_data["Reference"],score_data["Future gap"]))
+        condition_figure.add_trace(go.Scatter(x=score_data["Today"],y=row_positions,mode="markers+text",name="Today",text=score_data["Today"],textposition="middle left",textfont={"color":"#0f172a","size":11},marker={"size":18,"color":[status_colors.get(status,"#64748b") for status in score_data["Status"]],"symbol":"circle","line":{"color":"white","width":2}},customdata=today_hover,hovertemplate="<b>Today</b><br>Score: %{x}/100<br>Reading: %{customdata[0]}<br>Status: %{customdata[1]}<br>Reference: %{customdata[2]}<br>Gap: %{customdata[3]}<extra></extra>"))
+        condition_figure.add_trace(go.Scatter(x=score_data["With your plan"],y=row_positions,mode="markers+text",name="With your plan (modelled)",text=score_data["With your plan"],textposition="middle right",textfont={"color":"#065f46","size":11},marker={"size":18,"color":"#ffffff","symbol":"diamond","line":{"color":"#047857","width":3}},customdata=future_hover,hovertemplate="<b>With your plan (modelled)</b><br>Score: %{x}/100<br>Reading: %{customdata[0]}<br>Status: %{customdata[1]}<br>Reference: %{customdata[2]}<br>Gap: %{customdata[3]}<extra></extra>"))
+        for position,(_,row) in zip(row_positions,score_data.iterrows()):
+            condition_figure.add_annotation(x=106,y=position,text=f"{row['With your plan']-row['Today']:+.0f}",showarrow=False,font={"color":"#047857","size":12,"family":"Arial Black"},xanchor="center")
+        condition_figure.add_vline(x=100,line_color="#a7f3d0",line_dash="dot",line_width=1)
+        condition_figure.add_annotation(x=106,y=-.75,text="CHANGE",showarrow=False,font={"color":"#64748b","size":9},xanchor="center")
+        condition_figure.update_layout(height=385,margin={"l":175,"r":45,"t":62,"b":45},paper_bgcolor="#ffffff",plot_bgcolor="#ffffff",font={"color":"#334155","size":12},legend={"orientation":"h","y":1.16,"x":0,"font":{"color":"#334155","size":11}},hoverlabel={"bgcolor":"#ffffff","font_color":"#0f172a","bordercolor":"#cbd5e1"},xaxis={"title":{"text":"Condition score — higher means closer to the displayed reference","font":{"color":"#475569","size":11}},"range":[0,112],"tickvals":[0,25,50,75,100],"tickfont":{"color":"#475569","size":10},"gridcolor":"#e2e8f0","zeroline":False,"fixedrange":True},yaxis={"title":None,"tickvals":row_positions,"ticktext":[f"{condition}  ·  {status}" for condition,status in zip(score_data["Condition"],score_data["Status"])],"tickfont":{"color":"#0f172a","size":11},"autorange":"reversed","showgrid":False,"fixedrange":True})
+        st.plotly_chart(condition_figure,width="stretch",config={"displayModeBar":False},theme=None)
         st.dataframe(pd.DataFrame(current_conditions).rename(columns={"Score":"Health score","Current":"Current reading","Healthy":"Displayed reference","Difference":"Distance from reference"}),width="stretch",hide_index=True,column_config={"Health score":st.column_config.ProgressColumn("Health score",min_value=0,max_value=100)})
 
         st.markdown("### What's driving the improvement")
