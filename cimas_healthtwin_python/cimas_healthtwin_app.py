@@ -113,6 +113,27 @@ st.markdown(
         max-width:780px; margin:2rem auto 0; }
       div[data-testid="stMetric"] { background:#fff; border:1px solid #e2e8f0;
         padding:.75rem .9rem; border-radius:1rem; }
+      div[data-testid="stMetric"] [data-testid="stMetricLabel"],
+      div[data-testid="stMetric"] [data-testid="stMetricLabel"] p {
+        color:#334155 !important;
+        opacity:1 !important;
+      }
+      div[data-testid="stMetric"] [data-testid="stMetricValue"],
+      div[data-testid="stMetric"] [data-testid="stMetricValue"] > div {
+        color:#0f172a !important;
+        opacity:1 !important;
+      }
+      div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        font-size:clamp(1.25rem, 2.2vw, 1.75rem) !important;
+        line-height:1.2 !important;
+        white-space:normal !important;
+        overflow:visible !important;
+        text-overflow:clip !important;
+      }
+      div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+        color:#047857 !important;
+        opacity:1 !important;
+      }
       @media (max-width: 768px) {
         .block-container { padding-top:5rem; }
       }
