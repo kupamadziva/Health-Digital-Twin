@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 from html import escape
 from io import BytesIO
 import secrets
+from textwrap import dedent
 from urllib.parse import urlsplit, urlunsplit
 
 import pandas as pd
@@ -711,7 +712,7 @@ def member_view() -> None:
             change=future["Score"]-now["Score"]
             change_color="#047857" if change>0 else "#be123c" if change<0 else "#64748b"
             change_bg="#ecfdf5" if change>0 else "#fff1f2" if change<0 else "#f1f5f9"
-            cards.append(f"""
+            cards.append(dedent(f"""
               <div class="condition-card" style="--accent:{accent}">
                 <div class="condition-card-head">
                   <div class="condition-card-name">{escape(now['Condition'])}</div>
@@ -738,8 +739,8 @@ def member_view() -> None:
                 <div class="condition-reading"><span>Modelled: <strong>{escape(future['Current'])}</strong></span><span>Status: <strong>{escape(future['Status'])}</strong></span></div>
                 <div class="condition-gap"><strong>Current gap:</strong> {escape(now['Difference'])}<br><strong>With plan:</strong> {escape(future['Difference'])}</div>
               </div>
-            """)
-        st.markdown('<div class="condition-grid">'+''.join(cards)+'</div>',unsafe_allow_html=True)
+            """).strip())
+        st.html('<div class="condition-grid">'+''.join(cards)+'</div>')
         with st.expander("View condition scores as a table"):
             st.dataframe(pd.DataFrame(current_conditions).rename(columns={"Score":"Health score","Current":"Current reading","Healthy":"Displayed reference","Difference":"Distance from reference"}),width="stretch",hide_index=True,column_config={"Health score":st.column_config.ProgressColumn("Health score",min_value=0,max_value=100)})
 
