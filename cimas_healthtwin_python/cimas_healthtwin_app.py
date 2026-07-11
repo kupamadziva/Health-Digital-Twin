@@ -54,7 +54,7 @@ from healthtwin_db import (
 
 
 st.set_page_config(
-    page_title="Cimas HealthTwin AI",
+    page_title="Cimas HealthTwin",
     page_icon="🫀",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -382,6 +382,21 @@ def profile_and_plan(saved: dict) -> tuple[str, dict, TwinState, InterventionPla
     return name, profile, state, plan, horizon
 
 
+def apply_chart_theme(figure: go.Figure) -> go.Figure:
+    """Apply the active UI palette to Plotly's SVG, axes, legend and hover."""
+    figure.update_layout(
+        paper_bgcolor=CHART_BG,
+        plot_bgcolor=CHART_BG,
+        font={"color": CHART_TEXT},
+        hoverlabel={"bgcolor": CHART_HOVER, "bordercolor": CHART_LINE, "font": {"color": CHART_TEXT}},
+    )
+    figure.update_xaxes(gridcolor=CHART_GRID, linecolor=CHART_LINE, tickcolor=CHART_LINE, tickfont={"color": CHART_TEXT}, title_font={"color": CHART_TEXT})
+    figure.update_yaxes(gridcolor=CHART_GRID, linecolor=CHART_LINE, tickcolor=CHART_LINE, tickfont={"color": CHART_TEXT}, title_font={"color": CHART_TEXT})
+    if figure.layout.legend:
+        figure.update_layout(legend={"bgcolor": CHART_LEGEND_BG, "bordercolor": CHART_LINE, "font": {"color": CHART_TEXT}})
+    return figure
+
+
 def chart_for(data: pd.DataFrame, metric: str, height_cm: float) -> go.Figure:
     mapping = {
         "Overall": ("Twin index", "Overall health score"),
@@ -405,16 +420,16 @@ def chart_for(data: pd.DataFrame, metric: str, height_cm: float) -> go.Figure:
     figure.update_layout(
         height=330,
         margin={"l":70,"r":25,"t":62,"b":62},
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#ffffff",
-        font={"color":"#334155","size":11},
+        paper_bgcolor=CHART_BG,
+        plot_bgcolor=CHART_BG,
+        font={"color":CHART_TEXT,"size":11},
         hovermode="x unified",
-        legend={"orientation":"h","y":1.18,"x":0,"xanchor":"left","yanchor":"top","bgcolor":"rgba(255,255,255,.95)","bordercolor":"#cbd5e1","borderwidth":1,"font":{"color":"#0f172a","size":11},"title":{"text":"PATH","font":{"color":"#64748b","size":9}}},
-        xaxis={"title":{"text":"Months from latest check-up","font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"gridcolor":"#e2e8f0","linecolor":"#94a3b8","linewidth":1,"showline":True,"ticks":"outside","tickcolor":"#94a3b8","dtick":6,"zeroline":False},
-        yaxis={"title":{"text":axis_label,"font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"gridcolor":"#e2e8f0","linecolor":"#94a3b8","linewidth":1,"showline":True,"ticks":"outside","tickcolor":"#94a3b8","zeroline":False},
-        hoverlabel={"bgcolor":"#ffffff","bordercolor":"#cbd5e1","font":{"color":"#0f172a"}},
+        legend={"orientation":"h","y":1.18,"x":0,"xanchor":"left","yanchor":"top","bgcolor":CHART_LEGEND_BG,"bordercolor":CHART_LINE,"borderwidth":1,"font":{"color":CHART_TEXT,"size":11},"title":{"text":"PATH","font":{"color":CHART_TEXT,"size":9}}},
+        xaxis={"title":{"text":"Months from latest check-up","font":{"color":CHART_TEXT,"size":11}},"tickfont":{"color":CHART_TEXT,"size":10},"gridcolor":CHART_GRID,"linecolor":CHART_LINE,"linewidth":1,"showline":True,"ticks":"outside","tickcolor":CHART_LINE,"dtick":6,"zeroline":False},
+        yaxis={"title":{"text":axis_label,"font":{"color":CHART_TEXT,"size":11}},"tickfont":{"color":CHART_TEXT,"size":10},"gridcolor":CHART_GRID,"linecolor":CHART_LINE,"linewidth":1,"showline":True,"ticks":"outside","tickcolor":CHART_LINE,"zeroline":False},
+        hoverlabel={"bgcolor":CHART_HOVER,"bordercolor":CHART_LINE,"font":{"color":CHART_TEXT}},
     )
-    return figure
+    return apply_chart_theme(figure)
 
 
 def change_label(field: str, earlier: float, later: float, earlier_conditions: dict | None = None, later_conditions: dict | None = None) -> str:
@@ -536,6 +551,7 @@ def health_record_section(name: str, current: TwinState, plan: InterventionPlan,
                 label={"HealthTwin score":"Strong score: 80+","Average blood sugar":"Normal boundary: below 5.7%","Kidney function":"Reference: 90+"}[selected]
                 figure.add_hline(y=reference,line_color="#10b981",line_dash="dash",annotation_text=label,annotation_position="top left",annotation_font_color="#065f46")
         figure.update_layout(height=330,margin={"l":70,"r":25,"t":58,"b":60},paper_bgcolor="#ffffff",plot_bgcolor="#ffffff",font={"color":"#334155"},legend={"orientation":"h","y":1.16,"x":0,"bgcolor":"rgba(255,255,255,.95)","bordercolor":"#cbd5e1","borderwidth":1,"font":{"color":"#0f172a","size":11}},xaxis={"title":{"text":"Check-up date","font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"gridcolor":"#e2e8f0","showline":True,"linecolor":"#94a3b8","ticks":"outside","tickcolor":"#94a3b8"},yaxis={"title":{"text":selected,"font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"gridcolor":"#e2e8f0","showline":True,"linecolor":"#94a3b8","ticks":"outside","tickcolor":"#94a3b8"},hoverlabel={"bgcolor":"#ffffff","font":{"color":"#0f172a"}})
+        apply_chart_theme(figure)
         st.plotly_chart(figure,width="stretch",config={"displayModeBar":False},theme=None)
 
         st.markdown("#### Individual condition scores over time")
@@ -551,6 +567,7 @@ def health_record_section(name: str, current: TwinState, plan: InterventionPlan,
             hover_data=list(zip(subset["Current"],subset["Reference"],subset["Difference"],subset["Status"]))
             score_figure.add_trace(go.Scatter(x=subset["Date"],y=subset["Score"],mode="lines+markers",name=condition,customdata=hover_data,hovertemplate="%{x|%d %b %Y}<br>Score: %{y}/100<br>Reading: %{customdata[0]}<br>Reference: %{customdata[1]}<br>Gap: %{customdata[2]}<br>Status: %{customdata[3]}<extra>"+condition+"</extra>"))
         score_figure.update_layout(height=390,margin={"l":70,"r":25,"t":78,"b":62},paper_bgcolor="#ffffff",plot_bgcolor="#ffffff",font={"color":"#334155"},legend={"orientation":"h","y":1.22,"x":0,"bgcolor":"rgba(255,255,255,.96)","bordercolor":"#cbd5e1","borderwidth":1,"font":{"color":"#0f172a","size":10},"title":{"text":"CONDITION","font":{"color":"#64748b","size":9}}},xaxis={"title":{"text":"Check-up date","font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"gridcolor":"#e2e8f0","showline":True,"linecolor":"#94a3b8","ticks":"outside","tickcolor":"#94a3b8"},yaxis={"title":{"text":"Condition health score (0–100)","font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"range":[0,100],"gridcolor":"#e2e8f0","showline":True,"linecolor":"#94a3b8","ticks":"outside","tickcolor":"#94a3b8"},hoverlabel={"bgcolor":"#ffffff","font":{"color":"#0f172a"}})
+        apply_chart_theme(score_figure)
         st.plotly_chart(score_figure,width="stretch",config={"displayModeBar":False},theme=None)
         st.caption("Hover over any point to see exactly how far that reading was from the healthy reference at that check-up.")
 
@@ -1011,6 +1028,7 @@ def care_view() -> None:
         funnel = pd.DataFrame({"Stage": ["Identified", "Assigned", "Contacted", "Enrolled", "Followed up", "Improved"], "Members": [9, 7, 6, 6, 4, 3]})
         fig = go.Figure(go.Funnel(y=funnel["Stage"], x=funnel["Members"], textinfo="value+percent initial", marker={"color": ["#0f766e", "#0d9488", "#14b8a6", "#2dd4bf", "#5eead4", "#99f6e4"]}))
         fig.update_layout(height=390, margin={"l": 120, "r": 25, "t": 20, "b": 25}, paper_bgcolor="#ffffff", font={"color": "#1e293b", "size": 12})
+        apply_chart_theme(fig)
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False}, theme=None)
         outcome_stats = st.columns(3)
         outcome_stats[0].metric("Median alert-to-contact", "1.8 days")
@@ -1037,6 +1055,7 @@ def care_view() -> None:
             by_condition = chronic_claims.groupby("Condition attribution", as_index=False)["Paid amount"].sum().sort_values("Paid amount")
             cost_fig = go.Figure(go.Bar(y=by_condition["Condition attribution"], x=by_condition["Paid amount"], orientation="h", marker_color="#0f766e", text=[f"US${v:,.0f}" for v in by_condition["Paid amount"]], textposition="outside"))
             cost_fig.update_layout(height=300, margin={"l": 130, "r": 60, "t": 20, "b": 55}, paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", showlegend=False, font={"color": "#334155"}, xaxis={"title": "Paid amount in latest 12 months (US$)", "gridcolor": "#e2e8f0", "showline": True, "linecolor": "#94a3b8"}, yaxis={"title": "Condition", "showline": True, "linecolor": "#94a3b8"})
+            apply_chart_theme(cost_fig)
             st.plotly_chart(cost_fig, width="stretch", config={"displayModeBar": False}, theme=None)
         with right:
             st.markdown("#### What made up the cost")
@@ -1062,11 +1081,71 @@ if shared_token:
     render_clinician_record(shared_token)
 
 
-header_left,header_right=st.columns([3,1])
+header_left,header_view,header_theme=st.columns([2.2,1.35,.75], vertical_alignment="center")
 with header_left:
-    st.markdown('<div class="brand"><span style="font-size:1.25rem">🫀</span><div class="brand-name">Cimas HealthTwin AI</div></div><div class="tagline">“Predict tomorrow\'s health, today.”</div>',unsafe_allow_html=True)
-with header_right:
+    st.markdown('<div class="brand"><span class="brand-mark"></span><div class="brand-name">Cimas HealthTwin</div></div><div class="tagline">Longitudinal health and care management</div>',unsafe_allow_html=True)
+with header_view:
     view=st.radio("View",["Member view","Care manager view"],horizontal=True,label_visibility="collapsed")
+with header_theme:
+    dark_theme=st.toggle("Dark theme", key="dark_theme")
+
+CHART_BG = "#151c22" if dark_theme else "#ffffff"
+CHART_TEXT = "#dbe5ec" if dark_theme else "#334155"
+CHART_GRID = "#2b3943" if dark_theme else "#e2e8f0"
+CHART_LINE = "#6f8390" if dark_theme else "#94a3b8"
+CHART_HOVER = "#202b33" if dark_theme else "#ffffff"
+CHART_LEGEND_BG = "rgba(21,28,34,.96)" if dark_theme else "rgba(255,255,255,.96)"
+
+if dark_theme:
+    st.markdown("""
+    <style>
+      :root { color-scheme:dark; }
+      .stApp,[data-testid="stHeader"] { background:#0f1419 !important; color:#dbe5ec !important; }
+      .stApp p,.stApp label,.stApp [data-testid="stWidgetLabel"],
+      .stApp [data-testid="stMarkdownContainer"],.stApp [data-testid="stCaptionContainer"] { color:#c2ced6 !important; }
+      .stApp h1,.stApp h2,.stApp h3,.stApp h4,.brand-name,.plain-value { color:#edf3f7 !important; }
+      .tagline,.section-label,.plain-label,.stat-label,.stat-hint,.score-kicker,.risk-note { color:#91a1ac !important; }
+      .score-panel,.risk-card,.condition-card,.stat-card,.member-strip,.st-key-profile_panel,
+      div[data-testid="stMetric"],[data-testid="stExpander"],div[data-testid="stForm"] {
+        background:#151c22 !important; border-color:#2b3943 !important; box-shadow:none !important;
+      }
+      .condition-gap,.action-card { background:#1b252c !important; color:#c2ced6 !important; }
+      .lever { border-color:#2b3943 !important; color:#c2ced6 !important; }
+      .condition-reading,.risk-caption { color:#a8b6bf !important; }
+      .condition-reading strong,.condition-card-name,.condition-score-number { color:#edf3f7 !important; }
+      .condition-track { background:#33434e !important; }
+      div[data-testid="stMetric"] [data-testid="stMetricLabel"] p,
+      div[data-testid="stMetric"] [data-testid="stMetricValue"] { color:#edf3f7 !important; }
+      [data-testid="stDataFrame"], [data-testid="stTable"] { border:1px solid #2b3943; border-radius:6px; }
+      div[data-baseweb="select"] > div, div[data-baseweb="input"] > div,
+      textarea, input { background:#151c22 !important; border-color:#34434e !important; color:#edf3f7 !important; }
+      button[kind="secondary"],button[data-baseweb="tab"] { color:#c2ced6 !important; }
+      hr { border-color:#2b3943 !important; }
+      .money-note { background:#172636 !important; border-color:#294b68 !important; color:#b9d8f1 !important; }
+      .footer { color:#81929e !important; }
+    </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <style>
+      :root { color-scheme:light; }
+      .stApp,[data-testid="stHeader"] { background:#f7f8f7 !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+  .brand-mark { width:1rem; height:1rem; display:inline-block; background:#087f5b;
+    border-radius:3px; box-shadow:inset 0 0 0 3px rgba(255,255,255,.22); }
+  .brand-name { font-size:1.2rem; letter-spacing:-.015em; }
+  .tagline { font-style:normal; font-size:.76rem; }
+  .score-panel,.risk-card,.condition-card,.stat-card,.member-strip,.st-key-profile_panel,
+  .st-key-sim_panel,div[data-testid="stMetric"] { border-radius:7px !important; box-shadow:none !important; }
+  button { border-radius:6px !important; }
+  [data-baseweb="tab-list"] { gap:.25rem; border-bottom:1px solid rgba(127,143,153,.3); }
+  button[data-baseweb="tab"] { border-radius:0 !important; }
+</style>
+""", unsafe_allow_html=True)
 
 if view=="Member view": member_view()
 else: care_view()
