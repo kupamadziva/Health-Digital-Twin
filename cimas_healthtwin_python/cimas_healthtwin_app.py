@@ -28,6 +28,16 @@ from digital_twin import (
 )
 from healthtwin_core import NO, YES, findrisc_points
 from health_metrics import condition_assessments
+from care_manager import (
+    CARE_CASES,
+    claims_for,
+    due_label,
+    initial_contacts,
+    initial_tasks,
+    member_claim_summary,
+    queue_rows,
+    scheme_claim_summary,
+)
 from healthtwin_db import (
     add_care_plan,
     add_checkup,
@@ -149,6 +159,20 @@ st.markdown(
       .stat-label { color:#64748b; font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; }
       .stat-value { color:#1e293b; font-size:1.65rem; font-weight:800; margin:.2rem 0; }
       .stat-hint { color:#64748b; font-size:.69rem; }
+      .priority-banner { border-radius:.75rem; padding:.7rem .85rem; margin:.25rem 0 .8rem;
+        background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; font-size:.8rem; }
+      .member-strip { background:#fff; border:1px solid #e2e8f0; border-radius:1rem;
+        padding:1rem; margin-bottom:.75rem; }
+      .member-strip h3 { margin:0 0 .15rem; }
+      .plain-label { color:#64748b; font-size:.68rem; font-weight:750; letter-spacing:.04em;
+        text-transform:uppercase; }
+      .plain-value { color:#0f172a; font-size:.87rem; font-weight:650; margin:.12rem 0 .65rem; }
+      .money-note { background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a8a;
+        border-radius:.7rem; padding:.75rem .85rem; font-size:.76rem; margin:.5rem 0 1rem; }
+      .status-pill { display:inline-block; border-radius:999px; padding:.18rem .55rem;
+        font-size:.68rem; font-weight:800; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+      .action-card { background:#f8fafc; border-left:4px solid #047857; border-radius:.55rem;
+        padding:.7rem .8rem; margin:.35rem 0 .8rem; color:#334155; font-size:.79rem; }
       .footer { color:#64748b; font-size:.7rem; text-align:center;
         max-width:780px; margin:2rem auto 0; }
       div[data-testid="stMetric"] { background:#fff; border:1px solid #e2e8f0;
@@ -812,7 +836,7 @@ def fleet_data() -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("Possible improvement",ascending=False)
 
 
-def care_view() -> None:
+def legacy_care_view() -> None:
     fleet=fleet_data()
     stats=st.columns(4)
     with stats[0]: stat_card("Members analysed","1,240","illustrative member group")
@@ -850,6 +874,187 @@ def care_view() -> None:
 
     with st.expander("Model details and limitations"):
         st.write(f"Model version **{ENGINE_VERSION}** compares how health measures may change with and without the selected support plan. The current calculations are illustrative and must be tested with approved Cimas data before real-world use.")
+
+
+def care_view() -> None:
+    """Operational population workspace for the synthetic demonstration cohort."""
+    fleet = fleet_data()
+    if "care_tasks" not in st.session_state:
+        st.session_state.care_tasks = initial_tasks()
+    if "care_contacts" not in st.session_state:
+        st.session_state.care_contacts = initial_contacts()
+    if "resolved_alerts" not in st.session_state:
+        st.session_state.resolved_alerts = set()
+
+    score_by_name = dict(zip(fleet["Member"], fleet["Current score"]))
+    queue = queue_rows(FLEET, score_by_name)
+    open_alerts = queue[(queue["Priority"].isin(["Urgent", "High"])) & (~queue["Member"].isin(st.session_state.resolved_alerts))]
+    overdue = sum(t["Status"] == "Overdue" for t in st.session_state.care_tasks)
+    reached = sum(c["Outcome"] == "Reached" for c in st.session_state.care_contacts)
+    contact_rate = reached / len(st.session_state.care_contacts) if st.session_state.care_contacts else 0
+
+    st.markdown("## Care operations")
+    st.caption("See who needs attention, understand why, take action and record the result.")
+    stats = st.columns(4)
+    with stats[0]: stat_card("Needs action today", str(len(open_alerts)), "urgent or high-priority members")
+    with stats[1]: stat_card("Overdue tasks", str(overdue), "requires follow-up")
+    with stats[2]: stat_card("Successful contact", f"{contact_rate:.0%}", "of recorded contact attempts")
+    with stats[3]: stat_card("Open tasks", str(sum(t["Status"] != "Completed" for t in st.session_state.care_tasks)), "across the demo care team")
+
+    work_tab, tasks_tab, programmes_tab, outcomes_tab, claims_tab = st.tabs(
+        ["Priority work queue", "Tasks & contact", "Care programmes", "Outcomes", "Claims cost"]
+    )
+
+    with work_tab:
+        f1, f2, f3 = st.columns([1, 1, 1.2])
+        priorities = f1.multiselect("Priority", ["Urgent", "High", "Medium", "Routine"], default=["Urgent", "High", "Medium", "Routine"])
+        regions = f2.multiselect("Region", sorted(queue["Region"].unique()), default=[])
+        owners = f3.multiselect("Assigned care manager", sorted(queue["Owner"].unique()), default=[])
+        filtered = queue[queue["Priority"].isin(priorities)]
+        if regions: filtered = filtered[filtered["Region"].isin(regions)]
+        if owners: filtered = filtered[filtered["Owner"].isin(owners)]
+
+        left, right = st.columns([1.75, 1], gap="large")
+        with left:
+            st.markdown("### Members requiring attention")
+            st.caption("The order considers reading severity, overdue work and follow-up need. Every flag states its reason.")
+            visible = filtered[["Priority", "Member", "Why flagged", "Last contact", "Owner", "Due", "Next action", "Status"]]
+            st.dataframe(visible, width="stretch", hide_index=True, height=420)
+        with right:
+            member_options = filtered["Member"].tolist() or queue["Member"].tolist()
+            selected = st.selectbox("Open member", member_options, key="care_selected_member")
+            _, selected_region, state = next(item for item in FLEET if item[0] == selected)
+            case = CARE_CASES[selected]
+            selected_row = queue[queue["Member"] == selected].iloc[0]
+            previous_sbp = max(95, int(state.sbp - (8 if state.sbp >= 150 else 3)))
+            previous_dbp = max(55, int(state.dbp - 4))
+            previous_hba1c = max(4.5, round(state.hba1c - (0.4 if state.hba1c >= 6.5 else 0.1), 1))
+            st.html(dedent(f"""
+              <div class="member-strip">
+                <span class="status-pill">{escape(selected_row['Priority'])} priority</span>
+                <h3>{escape(selected)}</h3>
+                <div style="color:#64748b;font-size:.75rem">{escape(selected_region)} · assigned to {escape(case['owner'])}</div>
+              </div>
+              <div class="plain-label">Why this member is here</div>
+              <div class="plain-value">{escape(selected_row['Why flagged'])}</div>
+              <div class="plain-label">Change since previous check-up</div>
+              <div class="plain-value">Blood pressure {previous_sbp}/{previous_dbp} → {int(state.sbp)}/{int(state.dbp)} · Average blood sugar {previous_hba1c:.1f}% → {state.hba1c:.1f}%</div>
+              <div class="plain-label">Current programme</div>
+              <div class="plain-value">{escape(case['programme'])}</div>
+              <div class="plain-label">Contact and access</div>
+              <div class="plain-value">Prefers {escape(case['contact'])} · {escape(case['barrier'])}</div>
+              <div class="action-card"><strong>Recommended next step</strong><br>{escape(selected_row['Next action'])}</div>
+            """))
+            if selected in st.session_state.resolved_alerts:
+                st.success("Alert acknowledged and removed from today's open-alert count.")
+            elif st.button("Acknowledge alert", type="primary", width="stretch"):
+                st.session_state.resolved_alerts.add(selected)
+                st.rerun()
+            with st.expander("Recent health timeline"):
+                timeline = pd.DataFrame({
+                    "Check-up": ["Previous", "Latest"],
+                    "Blood pressure": [f"{previous_sbp}/{previous_dbp}", f"{int(state.sbp)}/{int(state.dbp)}"],
+                    "Average blood sugar": [f"{previous_hba1c:.1f}%", f"{state.hba1c:.1f}%"],
+                    "Kidney function": [f"{min(120, state.egfr+4):.0f}", f"{state.egfr:.0f}"],
+                })
+                st.dataframe(timeline, hide_index=True, width="stretch")
+
+    with tasks_tab:
+        left, right = st.columns([1.35, 1], gap="large")
+        with left:
+            st.markdown("### Team tasks")
+            tasks_df = pd.DataFrame(st.session_state.care_tasks)
+            st.dataframe(tasks_df, hide_index=True, width="stretch", column_config={"Due": st.column_config.DateColumn("Due", format="DD MMM YYYY")})
+            st.markdown("#### Create a task")
+            with st.form("new_care_task", clear_on_submit=True):
+                a, b = st.columns(2)
+                task_member = a.selectbox("Member", queue["Member"].tolist())
+                task_owner = b.selectbox("Assign to", ["Rudo N.", "Tariro K.", "Nyasha P."])
+                task_text = st.text_input("What needs to be done?", placeholder="For example: arrange repeat blood-pressure check")
+                task_due = st.date_input("Due date", value=date.today() + timedelta(days=2))
+                if st.form_submit_button("Create task", type="primary"):
+                    if task_text.strip():
+                        status = "Overdue" if task_due < date.today() else "Open"
+                        st.session_state.care_tasks.append({"Member": task_member, "Task": task_text.strip(), "Owner": task_owner, "Due": task_due, "Status": status})
+                        st.rerun()
+                    else:
+                        st.error("Describe the task before saving it.")
+        with right:
+            st.markdown("### Record contact and outcome")
+            with st.form("care_contact", clear_on_submit=True):
+                contact_member = st.selectbox("Member contacted", queue["Member"].tolist())
+                channel = st.selectbox("Contact method", ["Phone", "WhatsApp", "SMS", "Email", "In person"])
+                result = st.selectbox("Outcome", ["Reached", "No answer", "Wrong number", "Appointment booked", "Referred", "Member declined"])
+                note = st.text_area("What happened and what is next?", placeholder="Keep this short and useful for the next care manager.")
+                if st.form_submit_button("Save contact record", type="primary"):
+                    st.session_state.care_contacts.insert(0, {"Member": contact_member, "Date": date.today(), "Channel": channel, "Outcome": result, "Note": note.strip() or "No additional note."})
+                    st.rerun()
+            st.markdown("#### Recent contact history")
+            st.dataframe(pd.DataFrame(st.session_state.care_contacts), hide_index=True, width="stretch")
+
+    with programmes_tab:
+        st.markdown("### Member care programmes")
+        programme_rows = []
+        for name, _, state in FLEET:
+            case = CARE_CASES[name]
+            score = score_by_name[name]
+            goal = min(100, score + int(fleet.loc[fleet["Member"] == name, "Possible improvement"].iloc[0]))
+            programme_rows.append({"Member": name, "Programme": case["programme"], "Starting score": max(0, score-3), "Current score": score, "Goal": goal, "Engagement": "Active" if case["status"] != "Monitoring" else "Monitoring", "Next review": due_label(case["due"])})
+        st.dataframe(pd.DataFrame(programme_rows), hide_index=True, width="stretch", column_config={
+            "Current score": st.column_config.ProgressColumn("Current score", min_value=0, max_value=100),
+            "Goal": st.column_config.ProgressColumn("Goal", min_value=0, max_value=100),
+        })
+        st.info("Programme goals are agreed targets, not guaranteed results. Progress should be reviewed against actual follow-up readings.")
+
+    with outcomes_tab:
+        st.markdown("### From identification to improvement")
+        funnel = pd.DataFrame({"Stage": ["Identified", "Assigned", "Contacted", "Enrolled", "Followed up", "Improved"], "Members": [9, 7, 6, 6, 4, 3]})
+        fig = go.Figure(go.Funnel(y=funnel["Stage"], x=funnel["Members"], textinfo="value+percent initial", marker={"color": ["#0f766e", "#0d9488", "#14b8a6", "#2dd4bf", "#5eead4", "#99f6e4"]}))
+        fig.update_layout(height=390, margin={"l": 120, "r": 25, "t": 20, "b": 25}, paper_bgcolor="#ffffff", font={"color": "#1e293b", "size": 12})
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False}, theme=None)
+        outcome_stats = st.columns(3)
+        outcome_stats[0].metric("Median alert-to-contact", "1.8 days")
+        outcome_stats[1].metric("Follow-ups on time", "67%")
+        outcome_stats[2].metric("Members improved", "3 of 4 followed up")
+        st.caption("Demo workflow measures from the nine synthetic members. Production reporting must use a defined period and approved outcome definitions.")
+
+    with claims_tab:
+        st.markdown("### Chronic-condition cost on the claims book")
+        st.html('<div class="money-note"><strong>Important:</strong> All amounts below are synthetic USD-equivalent demo data for the latest 12 months. “Attributed” means grouped by a demo claims rule; it does not prove that a condition caused the claim or that an intervention will save that amount.</div>')
+        selected_claim_member = st.selectbox("View member claims", queue["Member"].tolist(), key="claims_member")
+        summary = member_claim_summary(selected_claim_member)
+        member_claims = claims_for(selected_claim_member)
+        chronic_claims = member_claims[member_claims["Condition attribution"] != "Other care"]
+        cm = st.columns(4)
+        cm[0].metric("All paid claims", f"US${summary['total']:,.0f}", f"{summary['change']:+.0%} vs previous 12 months")
+        cm[1].metric("Attributed to chronic conditions", f"US${summary['chronic']:,.0f}", f"{summary['chronic_share']:.0%} of this member's claims")
+        cm[2].metric("Chronic-condition claims", f"{int(chronic_claims['Claims'].sum())}", "transactions in 12 months")
+        cm[3].metric("Average per month", f"US${summary['chronic']/12:,.0f}", "chronic-condition amount")
+
+        left, right = st.columns([1.25, 1], gap="large")
+        with left:
+            st.markdown("#### Cost attributed to each condition")
+            by_condition = chronic_claims.groupby("Condition attribution", as_index=False)["Paid amount"].sum().sort_values("Paid amount")
+            cost_fig = go.Figure(go.Bar(y=by_condition["Condition attribution"], x=by_condition["Paid amount"], orientation="h", marker_color="#0f766e", text=[f"US${v:,.0f}" for v in by_condition["Paid amount"]], textposition="outside"))
+            cost_fig.update_layout(height=300, margin={"l": 130, "r": 60, "t": 20, "b": 55}, paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", showlegend=False, font={"color": "#334155"}, xaxis={"title": "Paid amount in latest 12 months (US$)", "gridcolor": "#e2e8f0", "showline": True, "linecolor": "#94a3b8"}, yaxis={"title": "Condition", "showline": True, "linecolor": "#94a3b8"})
+            st.plotly_chart(cost_fig, width="stretch", config={"displayModeBar": False}, theme=None)
+        with right:
+            st.markdown("#### What made up the cost")
+            category = chronic_claims.groupby("Claim category", as_index=False).agg(Claims=("Claims", "sum"), **{"Paid amount": ("Paid amount", "sum")}).sort_values("Paid amount", ascending=False)
+            st.dataframe(category, hide_index=True, width="stretch", column_config={"Paid amount": st.column_config.NumberColumn("Paid amount", format="US$ %.0f")})
+
+        st.markdown("### Company claims-book view")
+        all_claims = scheme_claim_summary()
+        condition_book = all_claims[all_claims["Condition attribution"] != "Other care"].groupby("Condition attribution", as_index=False).agg(Members=("Member", "nunique"), Claims=("Claims", "sum"), **{"Paid amount": ("Paid amount", "sum")})
+        condition_book["Average per affected member"] = condition_book["Paid amount"] / condition_book["Members"]
+        st.dataframe(condition_book.sort_values("Paid amount", ascending=False), hide_index=True, width="stretch", column_config={
+            "Paid amount": st.column_config.NumberColumn("Paid amount", format="US$ %.0f"),
+            "Average per affected member": st.column_config.NumberColumn("Average per affected member", format="US$ %.0f"),
+        })
+        st.caption("For production, these figures should come from adjudicated claims and use agreed diagnosis, medicine, provider and procedure mappings. Show incurred/paid period, currency, reversals and incomplete-claims adjustments.")
+
+    with st.expander("How prioritisation and cost attribution work"):
+        st.write(f"Model version **{ENGINE_VERSION}** uses current readings, overdue work and follow-up needs to order the synthetic queue. Claims are grouped to conditions with explicit demo rules. Neither the health outlook nor the claims grouping is a clinical diagnosis, actuarial forecast or savings guarantee. Both require validation using approved Cimas definitions and data.")
 
 
 shared_token = st.query_params.get("share")
