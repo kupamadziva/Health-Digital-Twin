@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 from html import escape
 from io import BytesIO
 import secrets
+from urllib.parse import urlsplit, urlunsplit
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -201,6 +202,19 @@ def stat_card(label: str, value: str, hint: str) -> None:
 def clinician_share_store() -> dict:
     """Ephemeral server-memory store used only for the QR demonstration."""
     return {}
+
+
+def current_app_address() -> str:
+    """Return the current app URL without query parameters for QR sharing."""
+    try:
+        current_url = str(st.context.url or "").strip()
+    except Exception:
+        current_url = ""
+    if not current_url:
+        return "http://localhost:8501"
+    parsed = urlsplit(current_url)
+    clean_path = parsed.path.rstrip("/")
+    return urlunsplit((parsed.scheme, parsed.netloc, clean_path, "", ""))
 
 
 def patient_summary(name: str, current: TwinState, events: list[dict], checkup_rows: list[dict], medication_rows: list[dict]) -> dict:
@@ -569,7 +583,8 @@ def health_record_section(name: str, current: TwinState, plan: InterventionPlan,
     with share_tab:
         st.markdown("#### Create temporary doctor access")
         st.write("The QR opens a read-only summary of check-ups, illnesses, medicines, allergies, and recent care.")
-        base_url=st.text_input("Address where this app can be reached","http://localhost:8501",help="Use the deployed or clinic-network address for another device.")
+        detected_address=current_app_address()
+        base_url=st.text_input("App address used by the QR code",detected_address,help="This is copied automatically from the address of the app currently open in your browser.")
         if st.button("Generate secure QR code",type="primary"):
             token=secrets.token_urlsafe(24)
             clinician_share_store()[token]={"summary":patient_summary(name,current,event_rows,checkup_rows,medication_rows),"expires":datetime.now()+timedelta(minutes=15)}
@@ -583,10 +598,13 @@ def health_record_section(name: str, current: TwinState, plan: InterventionPlan,
                     buffer=BytesIO(); qr_image.save(buffer,format="PNG"); st.image(buffer.getvalue(),width=220)
             with info_col:
                 st.success("Doctor-access link created for 15 minutes.")
-                st.code(clinician_url,language=None)
                 st.write("The QR contains only a temporary link—not the medical history itself.")
                 if st.button("Revoke doctor access"):
                     clinician_share_store().pop(token,None); st.session_state.pop("share_token",None); st.rerun()
+            st.markdown("**Copy or open the address encoded in the QR code:**")
+            st.code(clinician_url,language=None)
+            st.caption("Use the copy icon in the top-right corner of the address box.")
+            st.link_button("Open doctor view",clinician_url)
 
 
 def member_view() -> None:
