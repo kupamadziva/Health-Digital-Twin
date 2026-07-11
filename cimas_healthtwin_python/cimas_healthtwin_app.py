@@ -374,11 +374,22 @@ def chart_for(data: pd.DataFrame, metric: str, height_cm: float) -> go.Figure:
     if metric == "Weight":
         healthy_low = 18.5 * (height_cm / 100) ** 2
         healthy_high = 24.9 * (height_cm / 100) ** 2
-        figure.add_hrect(y0=healthy_low,y1=healthy_high,fillcolor="rgba(16,185,129,.10)",line_width=0,annotation_text="Healthy BMI range",annotation_position="top left")
+        figure.add_hrect(y0=healthy_low,y1=healthy_high,fillcolor="rgba(16,185,129,.10)",line_width=0,annotation_text="Healthy BMI range",annotation_position="top left",annotation_font_color="#065f46")
     else:
         reference = {"Overall":80,"Blood pressure":120,"Average blood sugar":5.7,"Kidney function":90}[metric]
-        figure.add_hline(y=reference,line_color="#10b981",line_dash="dash",annotation_text={"Overall":"Strong score: 80+","Blood pressure":"Normal boundary: below 120","Average blood sugar":"Normal boundary: below 5.7%","Kidney function":"Reference: 90+"}[metric],annotation_position="top left")
-    figure.update_layout(height=270, margin={"l":5,"r":5,"t":10,"b":5}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={"color":"#475569","size":11}, hovermode="x unified", legend={"orientation":"h","y":-0.22}, xaxis={"title":None,"gridcolor":"#f1f5f9"}, yaxis={"title":axis_label,"gridcolor":"#e7e5e4"})
+        figure.add_hline(y=reference,line_color="#10b981",line_dash="dash",annotation_text={"Overall":"Strong score: 80+","Blood pressure":"Normal boundary: below 120","Average blood sugar":"Normal boundary: below 5.7%","Kidney function":"Reference: 90+"}[metric],annotation_position="top left",annotation_font_color="#065f46")
+    figure.update_layout(
+        height=330,
+        margin={"l":70,"r":25,"t":62,"b":62},
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        font={"color":"#334155","size":11},
+        hovermode="x unified",
+        legend={"orientation":"h","y":1.18,"x":0,"xanchor":"left","yanchor":"top","bgcolor":"rgba(255,255,255,.95)","bordercolor":"#cbd5e1","borderwidth":1,"font":{"color":"#0f172a","size":11},"title":{"text":"PATH","font":{"color":"#64748b","size":9}}},
+        xaxis={"title":{"text":"Months from latest check-up","font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"gridcolor":"#e2e8f0","linecolor":"#94a3b8","linewidth":1,"showline":True,"ticks":"outside","tickcolor":"#94a3b8","dtick":6,"zeroline":False},
+        yaxis={"title":{"text":axis_label,"font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"gridcolor":"#e2e8f0","linecolor":"#94a3b8","linewidth":1,"showline":True,"ticks":"outside","tickcolor":"#94a3b8","zeroline":False},
+        hoverlabel={"bgcolor":"#ffffff","bordercolor":"#cbd5e1","font":{"color":"#0f172a"}},
+    )
     return figure
 
 
@@ -491,17 +502,17 @@ def health_record_section(name: str, current: TwinState, plan: InterventionPlan,
             figure.add_trace(go.Scatter(x=trend_data["checkup_date"],y=trend_data[field],mode="lines+markers",name=selected,line={"color":"#047857","width":3},marker={"size":8},hovertemplate="%{x|%d %b %Y}<br>%{y}<extra></extra>"))
         if selected == "Weight":
             low=18.5*(float(trend_data.iloc[-1]["height_cm"])/100)**2; high=24.9*(float(trend_data.iloc[-1]["height_cm"])/100)**2
-            figure.add_hrect(y0=low,y1=high,fillcolor="rgba(16,185,129,.10)",line_width=0,annotation_text="Healthy BMI range",annotation_position="top left")
+            figure.add_hrect(y0=low,y1=high,fillcolor="rgba(16,185,129,.10)",line_width=0,annotation_text="Healthy BMI range",annotation_position="top left",annotation_font_color="#065f46")
         else:
             if selected == "Blood pressure":
-                figure.add_hline(y=120,line_color="#10b981",line_dash="dash",annotation_text="Upper reference: below 120",annotation_position="top left")
-                figure.add_hline(y=80,line_color="#34d399",line_dash="dot",annotation_text="Lower reference: below 80",annotation_position="bottom left")
+                figure.add_hline(y=120,line_color="#10b981",line_dash="dash",annotation_text="Upper reference: below 120",annotation_position="top left",annotation_font_color="#065f46")
+                figure.add_hline(y=80,line_color="#34d399",line_dash="dot",annotation_text="Lower reference: below 80",annotation_position="bottom left",annotation_font_color="#065f46")
             else:
                 reference={"HealthTwin score":80,"Average blood sugar":5.7,"Kidney function":90}[selected]
                 label={"HealthTwin score":"Strong score: 80+","Average blood sugar":"Normal boundary: below 5.7%","Kidney function":"Reference: 90+"}[selected]
-                figure.add_hline(y=reference,line_color="#10b981",line_dash="dash",annotation_text=label,annotation_position="top left")
-        figure.update_layout(height=300,margin={"l":5,"r":5,"t":10,"b":5},paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font={"color":"#475569"},xaxis={"title":None,"gridcolor":"#f1f5f9"},yaxis={"title":selected,"gridcolor":"#e7e5e4"})
-        st.plotly_chart(figure,width="stretch",config={"displayModeBar":False})
+                figure.add_hline(y=reference,line_color="#10b981",line_dash="dash",annotation_text=label,annotation_position="top left",annotation_font_color="#065f46")
+        figure.update_layout(height=330,margin={"l":70,"r":25,"t":58,"b":60},paper_bgcolor="#ffffff",plot_bgcolor="#ffffff",font={"color":"#334155"},legend={"orientation":"h","y":1.16,"x":0,"bgcolor":"rgba(255,255,255,.95)","bordercolor":"#cbd5e1","borderwidth":1,"font":{"color":"#0f172a","size":11}},xaxis={"title":{"text":"Check-up date","font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"gridcolor":"#e2e8f0","showline":True,"linecolor":"#94a3b8","ticks":"outside","tickcolor":"#94a3b8"},yaxis={"title":{"text":selected,"font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"gridcolor":"#e2e8f0","showline":True,"linecolor":"#94a3b8","ticks":"outside","tickcolor":"#94a3b8"},hoverlabel={"bgcolor":"#ffffff","font":{"color":"#0f172a"}})
+        st.plotly_chart(figure,width="stretch",config={"displayModeBar":False},theme=None)
 
         st.markdown("#### Individual condition scores over time")
         condition_history=[]
@@ -515,8 +526,8 @@ def health_record_section(name: str, current: TwinState, plan: InterventionPlan,
             subset=condition_history_df[condition_history_df["Condition"]==condition]
             hover_data=list(zip(subset["Current"],subset["Reference"],subset["Difference"],subset["Status"]))
             score_figure.add_trace(go.Scatter(x=subset["Date"],y=subset["Score"],mode="lines+markers",name=condition,customdata=hover_data,hovertemplate="%{x|%d %b %Y}<br>Score: %{y}/100<br>Reading: %{customdata[0]}<br>Reference: %{customdata[1]}<br>Gap: %{customdata[2]}<br>Status: %{customdata[3]}<extra>"+condition+"</extra>"))
-        score_figure.update_layout(height=340,margin={"l":5,"r":5,"t":10,"b":5},paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font={"color":"#475569"},legend={"orientation":"h","y":-0.2},xaxis={"title":None,"gridcolor":"#f1f5f9"},yaxis={"title":"Condition health score","range":[0,100],"gridcolor":"#e7e5e4"})
-        st.plotly_chart(score_figure,width="stretch",config={"displayModeBar":False})
+        score_figure.update_layout(height=390,margin={"l":70,"r":25,"t":78,"b":62},paper_bgcolor="#ffffff",plot_bgcolor="#ffffff",font={"color":"#334155"},legend={"orientation":"h","y":1.22,"x":0,"bgcolor":"rgba(255,255,255,.96)","bordercolor":"#cbd5e1","borderwidth":1,"font":{"color":"#0f172a","size":10},"title":{"text":"CONDITION","font":{"color":"#64748b","size":9}}},xaxis={"title":{"text":"Check-up date","font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"gridcolor":"#e2e8f0","showline":True,"linecolor":"#94a3b8","ticks":"outside","tickcolor":"#94a3b8"},yaxis={"title":{"text":"Condition health score (0–100)","font":{"color":"#334155","size":11}},"tickfont":{"color":"#334155","size":10},"range":[0,100],"gridcolor":"#e2e8f0","showline":True,"linecolor":"#94a3b8","ticks":"outside","tickcolor":"#94a3b8"},hoverlabel={"bgcolor":"#ffffff","font":{"color":"#0f172a"}})
+        st.plotly_chart(score_figure,width="stretch",config={"displayModeBar":False},theme=None)
         st.caption("Hover over any point to see exactly how far that reading was from the healthy reference at that check-up.")
 
     with checkup_tab:
@@ -685,7 +696,7 @@ def member_view() -> None:
                 f"average blood sugar {latest['hba1c']-previous['hba1c']:+.1f}."
             )
         metric = st.radio("Health measure", ["Overall", "Weight", "Blood pressure", "Average blood sugar", "Kidney function"], horizontal=True, label_visibility="collapsed")
-        st.plotly_chart(chart_for(simulation, metric, current.height_cm), width="stretch", config={"displayModeBar":False})
+        st.plotly_chart(chart_for(simulation, metric, current.height_cm), width="stretch", config={"displayModeBar":False}, theme=None)
         st.markdown('</div>', unsafe_allow_html=True)
 
         cards = st.columns(2)
@@ -828,8 +839,8 @@ def care_view() -> None:
             for lever in text.split(", "): lever_counts[lever]=lever_counts.get(lever,0)+1
         lever_df=pd.DataFrame([{"Lever":k,"Members":v} for k,v in lever_counts.items()]).sort_values("Members",ascending=False)
         fig=go.Figure(go.Bar(x=lever_df["Lever"],y=lever_df["Members"],marker_color="#047857"))
-        fig.update_layout(height=235,margin={"l":5,"r":5,"t":5,"b":5},paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",font={"color":"#475569","size":10},xaxis={"title":None},yaxis={"title":None,"dtick":1,"gridcolor":"#e7e5e4"})
-        st.plotly_chart(fig,width="stretch",config={"displayModeBar":False})
+        fig.update_layout(height=270,margin={"l":55,"r":15,"t":20,"b":55},paper_bgcolor="#ffffff",plot_bgcolor="#ffffff",font={"color":"#334155","size":10},xaxis={"title":{"text":"Main opportunity","font":{"color":"#334155"}},"tickfont":{"color":"#334155"},"showline":True,"linecolor":"#94a3b8","ticks":"outside"},yaxis={"title":{"text":"Members","font":{"color":"#334155"}},"tickfont":{"color":"#334155"},"dtick":1,"gridcolor":"#e2e8f0","showline":True,"linecolor":"#94a3b8","ticks":"outside"})
+        st.plotly_chart(fig,width="stretch",config={"displayModeBar":False},theme=None)
         st.markdown("### Possible improvement by region")
         regional=fleet.groupby("Region",as_index=False)["Possible improvement"].mean().sort_values("Possible improvement",ascending=False)
         for _, row in regional.iterrows():
